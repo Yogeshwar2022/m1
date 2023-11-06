@@ -1,0 +1,99 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+
+# Load the Uber dataset
+uber = pd.read_csv('uber.csv')
+
+
+# Drop unnecessary columns and rows with missing values
+uber = uber.drop(['Unnamed: 0', 'key'], axis=1).dropna()
+
+
+# Calculate the distance between pickup and dropoff locations using Haversine formula
+# a = sin²(Δlat/2) + cos(lat1) * cos(lat2) * sin²(Δlon/2)
+# c = 2 * atan2(√a, √(1-a))
+# d = R * c
+
+def haversine(lon1, lon2, lat1, lat2):
+    lon1, lon2, lat1, lat2 = map(np.radians, [lon1, lon2, lat1, lat2])
+    diff_lon = lon2 - lon1
+    diff_lat = lat2 - lat1
+    km = 2 * 6371 * np.arcsin(np.sqrt(np.sin(diff_lat/2.0)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(diff_lon/2.0)**2))
+    return km
+
+uber['Distance'] = haversine(uber['pickup_longitude'], uber['dropoff_longitude'], uber['pickup_latitude'], uber['dropoff_latitude'])
+
+
+# Remove outliers and invalid data points
+uber = uber[(uber['Distance'] > 0) & (uber['Distance'] <= 60) & (uber['fare_amount'] > 0) & (uber['fare_amount'] <= 100)]
+
+
+# Convert pickup_datetime to datetime format and extract date features
+uber['pickup_datetime'] = pd.to_datetime(uber['pickup_datetime'])
+uber['Hour'] = uber['pickup_datetime'].dt.hour
+
+
+# Split the dataset into features (X) and the target variable (y)
+X = uber[['Distance', 'Hour']]
+y = uber['fare_amount']
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0) 
+# 20% for testing  and 0 means same split when code run 
+
+# Create a Linear Regression model
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+
+# Evaluate the model
+y_pred = model.predict(X_test)
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+mae = mean_absolute_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+
+# Plot the Linear Regression model predictions
+plt.figure(figsize=(12, 6))
+plt.subplot(1, 2, 1)
+plt.scatter(X_test['Distance'], y_test, color='red', label='Actual')
+plt.scatter(X_test['Distance'], y_pred, color='blue', label='Predicted')
+plt.xlabel("Distance")
+plt.ylabel("fare_amount")
+plt.legend()
+plt.title("Linear Regression Model")
+
+
+# Now, let's implement Random Forest Regression and compare it
+rf_model = RandomForestRegressor(n_estimators=100, random_state=0)
+rf_model.fit(X_train, y_train)
+
+# Evaluate the Random Forest model
+rf_y_pred = rf_model.predict(X_test)
+rf_rmse = np.sqrt(mean_squared_error(y_test, rf_y_pred))
+rf_mae = mean_absolute_error(y_test, rf_y_pred)
+rf_r2 = r2_score(y_test, rf_y_pred)
+
+
+# Plot the Random Forest Regression model predictions
+plt.subplot(1, 2, 2)
+plt.scatter(X_test['Distance'], y_test, color='red', label='Actual')
+plt.scatter(X_test['Distance'], rf_y_pred, color='green', label='Predicted (Random Forest)')
+plt.xlabel("Distance")
+plt.ylabel("fare_amount")
+plt.legend()
+plt.title("Random Forest Regression Model")
+plt.show()
+
+print("Root Mean Squared Error (Linear Regression):", rmse)
+print("Mean Absolute Error (Linear Regression):", mae)
+print("R-squared (R2) (Linear Regression):", r2)
+
+print("Root Mean Squared Error (Random Forest Regression):", rf_rmse)
+print("Mean Absolute Error (Random Forest Regression):", rf_mae)
+print("R-squared (R2) (Random Forest Regression):", rf_r2)
